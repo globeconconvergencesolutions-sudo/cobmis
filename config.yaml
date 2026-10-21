@@ -1,0 +1,44 @@
+# Hardware profiles. Select one with COB_PROFILE in .env; any individual value
+# can still be overridden by its env var (e.g. COB_CHAT_MODEL).
+#
+# Model tags MUST be verified on the target host at build time:
+#   ollama pull <tag> && python backend/scripts/check_ollama.py
+# Tags below reflect the Ollama library as best known on 2026-10-21 and are
+# placeholders until confirmed (see DECISIONS.md, D-004).
+
+profiles:
+  small:
+    # ~16 GB RAM, CPU-only or <= 8 GB VRAM
+    chat_model: "qwen3.5:9b"
+    sql_model: "qwen3.5:9b"
+    embed_model: "nomic-embed-text"
+    embed_dim: 768
+    num_ctx: 8192
+    embed_batch_size: 16
+    retrieval_top_k: 20
+    rerank_top_n: 6
+    reranker_enabled: false
+
+  medium:
+    # 32 GB RAM, 16-24 GB VRAM
+    chat_model: "qwen3.6:27b"
+    sql_model: "qwen3-coder:30b"
+    embed_model: "bge-m3"
+    embed_dim: 1024
+    num_ctx: 16384
+    embed_batch_size: 32
+    retrieval_top_k: 30
+    rerank_top_n: 8
+    reranker_enabled: true
+
+  large:
+    # 64 GB+ RAM, 32 GB+ VRAM (or 48 GB+ unified memory)
+    chat_model: "qwen3.6:35b-a3b"
+    sql_model: "qwen3-coder:30b"
+    embed_model: "bge-m3"
+    embed_dim: 1024
+    num_ctx: 32768
+    embed_batch_size: 64
+    retrieval_top_k: 30
+    rerank_top_n: 8
+    reranker_enabled: true

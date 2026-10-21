@@ -1,0 +1,11 @@
+# Pinned at build time (2026-10-21). Nothing here calls a hosted AI service.
+fastapi==0.156.4
+uvicorn==0.54.0
+pydantic==2.14.1
+pydantic-settings==2.16.1
+sqlalchemy==2.1.5
+alembic==1.20.0
+psycopg[binary]==3.3.6
+pgvector==0.5.1
+httpx==0.28.1
+pyyaml==6.0.3

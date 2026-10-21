@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+node_modules/
+dist/
+data/raw/*
+data/parsed/*
+!data/raw/.gitkeep
+!data/parsed/.gitkeep
+data/uploads/
+*.log
