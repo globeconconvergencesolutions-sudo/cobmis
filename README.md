@@ -89,9 +89,12 @@ python -m scripts.migrate
 
 # 7. Ingest: parse (parallel, resumable), tables -> SQL, chunk, embed (resumable)
 python -m scripts.ingest
-#    Parsing takes about 2.5 min per report on 4 cores. Embedding ~5,500 chunks prints a rate
-#    and ETA. Ctrl+C at any point is safe: rerun the same command to continue.
-#    Options: --only 9M, --workers 6, --skip-embed, --embed-limit 200 (trial)
+#    Parsing uses 4 worker processes by default and logs pages/s and an ETA per batch of 25
+#    pages; expect roughly 2.5-4 min per report. If the rate is very low (well under 1 page/s)
+#    the machine is probably short of memory: try --workers 2, or stop Ollama while parsing.
+#    Embedding ~5,500 chunks prints a rate and ETA. Ctrl+C at any point is safe: rerun the
+#    same command to continue. A failed batch is reported; the other batches are kept.
+#    Options: --only 9M, --workers 2, --skip-embed, --embed-limit 200 (trial)
 
 # 8. Ask (narrative/RAG path; numeric text-to-SQL is Phase 4)
 python -m scripts.ask "What challenges did Kericho County face in the first nine months of FY 2025/26?"

@@ -52,11 +52,11 @@ def _rec(period: str, sha: str) -> dict:
 
 
 def _write_doc(tmp_path: Path, mutate=None, name: str = "doc.json") -> Path:
-    doc = json.loads(FIXTURE.read_text())
+    doc = json.loads(FIXTURE.read_text(encoding="utf-8"))
     if mutate:
         mutate(doc)
     path = tmp_path / name
-    path.write_text(json.dumps(doc))
+    path.write_text(json.dumps(doc), encoding="utf-8")
     return path
 
 

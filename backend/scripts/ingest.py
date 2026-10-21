@@ -33,6 +33,13 @@ from app.llm.ollama_client import OllamaClient, OllamaError
 from scripts.migrate import migrate
 
 
+def _finish(parse_failures: list[str], log: logging.Logger) -> int:
+    if parse_failures:
+        log.error("not ingested (re-run to retry): %s", ", ".join(parse_failures))
+        return 1
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--only")
@@ -59,6 +66,7 @@ def main() -> int:
         recs = [r for r in recs if args.only in r["file"]]
 
     doc_ids = []
+    parse_failures: list[str] = []
     with connect("cob_ingest") as conn:
         for rec in recs:
             pdf = data_dir / "raw" / rec["file"]
@@ -67,7 +75,16 @@ def main() -> int:
                 continue
             doc_json = data_dir / "parsed" / doc_key(Path(rec["file"])) / "document.json"
             if not args.skip_parse:
-                doc_json = parse_document(pdf, data_dir / "parsed", workers=args.workers)
+                try:
+                    doc_json = parse_document(pdf, data_dir / "parsed", workers=args.workers)
+                except RuntimeError as exc:  # some batches failed; finished ones are saved
+                    log.error("%s", exc)
+                    parse_failures.append(rec["file"])
+                    continue
+            if not doc_json.exists():
+                log.error("%s has not been parsed yet (run without --skip-parse)", rec["file"])
+                parse_failures.append(rec["file"])
+                continue
             doc = json.loads(doc_json.read_text(encoding="utf-8"))
 
             if not args.skip_tables:
@@ -88,7 +105,7 @@ def main() -> int:
             log.info("cross-period check: %d pairs, %d failures", cc["pairs_checked"], len(cc["failures"]))
 
         if args.skip_embed:
-            return 0
+            return _finish(parse_failures, log)
         client = OllamaClient(s)
         try:
             client.embed(["warm-up"])  # fail fast if Ollama or the model is missing
@@ -104,7 +121,7 @@ def main() -> int:
         t = time.time()
         n = embed_pending(conn, client.embed, s.embed_model, s.embed_batch_size, doc_ids, args.embed_limit, progress)
         log.info("embedding done: %d chunks in %.0fs (backend=%s, model=%s)", n, time.time() - t, s.llm_backend, s.embed_model)
-    return 0
+    return _finish(parse_failures, log)
 
 
 if __name__ == "__main__":

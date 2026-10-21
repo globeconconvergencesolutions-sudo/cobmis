@@ -60,16 +60,16 @@ def test_parse_size(text, expected):
 
 def test_live_snapshot_matches_golden():
     """Every one of the 53 entries on the real page (snapshot 2026-10) parses to the reviewed values."""
-    entries = parse_listing(FIXTURE.read_text(), BASE)
+    entries = parse_listing(FIXTURE.read_text(encoding="utf-8"), BASE)
     got = [
         {"slug": e.slug, "fiscal_year": e.fiscal_year, "period": e.period, "size_text": e.size_text, "listed_as_empty": e.listed_as_empty}
         for e in entries
     ]
-    assert got == json.loads(EXPECTED.read_text())
+    assert got == json.loads(EXPECTED.read_text(encoding="utf-8"))
 
 
 def test_live_snapshot_invariants():
-    entries = parse_listing(FIXTURE.read_text(), BASE)
+    entries = parse_listing(FIXTURE.read_text(encoding="utf-8"), BASE)
     assert len(entries) == 53
     assert all(e.fiscal_year and e.period for e in entries), "every entry has a FY and a period"
     assert all(e.url.startswith("https://cob.go.ke/download/") for e in entries)

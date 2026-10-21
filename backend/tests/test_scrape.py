@@ -60,7 +60,7 @@ class FakeCob:
         if path == "/robots.txt":
             return httpx.Response(200, text="User-agent: *\nDisallow: /wp-admin/\n")
         if path == "/reports/consolidated-county-budget-implementation-review-reports/":
-            return httpx.Response(200, text=FIXTURE.read_text())
+            return httpx.Response(200, text=FIXTURE.read_text(encoding="utf-8"))
 
         slug = "county-governments-budget-implementation-review-report-the-first-quarter-of-fy-2025-26"
         # 1) package page redirects straight to the PDF
@@ -103,7 +103,7 @@ def client_for(fake: FakeCob) -> PoliteClient:
 
 
 def load(data_dir: Path) -> dict[str, dict]:
-    docs = json.loads((data_dir / "manifest.json").read_text())["documents"]
+    docs = json.loads((data_dir / "manifest.json").read_text(encoding="utf-8"))["documents"]
     return {d["slug"]: d for d in docs}
 
 
@@ -225,10 +225,10 @@ def test_find_file_link(html, expected):
 def test_rerun_refreshes_listing_metadata_without_redownloading(tmp_path):
     run(tmp_path, LISTING, client=client_for(FakeCob()))
     manifest = tmp_path / "manifest.json"
-    data = json.loads(manifest.read_text())
+    data = json.loads(manifest.read_text(encoding="utf-8"))
     q1 = next(d for d in data["documents"] if d["slug"].endswith("the-first-quarter-of-fy-2025-26"))
     q1["period"], q1["parse_notes"] = None, ["period not recognised"]  # as written by an older parser
-    manifest.write_text(json.dumps(data))
+    manifest.write_text(json.dumps(data), encoding="utf-8")
 
     fake = FakeCob()
     run(tmp_path, LISTING, client=client_for(fake))

@@ -34,7 +34,7 @@ from app.ingest.counties import county_mentions, match_county
 
 log = logging.getLogger("cob.parse")
 
-PARSE_VERSION = 2
+PARSE_VERSION = 3  # 3: typographic ligatures expanded
 FOOTER_BAND = 50  # points from the bottom edge: page number + running title live here
 MIN_TEXT_CHARS = 200  # below this, a page is treated as image-only (OCR candidate)
 
@@ -42,6 +42,9 @@ CAPTION_RE = re.compile(r"^\s*Table\s+(\d+(?:\.\d+)*)\s*[:.]\s*(.+)$")
 NUMBERED_HEADING_RE = re.compile(r"^\s*(\d+(?:\.\d+)*)\.?\s+(\S.*)$")
 COUNTY_SECTION_RE = re.compile(r"County\s+Government\s+of\s+(.+)$", re.I)
 ROMAN_RE = re.compile(r"^[ivxlc]+$", re.I)
+# InDesign emits ligature glyphs ("Ofﬁce"): expand them so search and embeddings see plain words.
+LIGATURES = str.maketrans({"\ufb00": "ff", "\ufb01": "fi", "\ufb02": "fl", "\ufb03": "ffi", "\ufb04": "ffl", "\ufb05": "st", "\ufb06": "st"})
+DEFAULT_MAX_WORKERS = 4  # each worker holds a full report in memory; more rarely helps on a laptop
 
 
 # ---------------------------------------------------------------- character helpers
@@ -56,7 +59,7 @@ def _page_chars(page: pymupdf.Page) -> list[tuple[str, float, float, float, floa
                 size = span["size"]
                 for ch in span["chars"]:
                     x0, y0, x1, _ = ch["bbox"]
-                    out.append((ch["c"], x0, y0, x1, ch["origin"][1], size))
+                    out.append((ch["c"].translate(LIGATURES), x0, y0, x1, ch["origin"][1], size))
     return out
 
 
@@ -161,7 +164,7 @@ def _lines(page: pymupdf.Page, footer_y: float) -> list[dict[str, Any]]:
             spans = [s for s in line["spans"] if s["text"].strip()]
             if not spans:
                 continue
-            text = re.sub(r"\s+", " ", "".join(s["text"] for s in line["spans"])).strip()
+            text = re.sub(r"\s+", " ", "".join(s["text"] for s in line["spans"])).strip().translate(LIGATURES)
             bold = all(("Bold" in s["font"]) or (s["flags"] & 16) for s in spans)
             size = max(s["size"] for s in spans)
             out.append({"text": text, "bbox": line["bbox"], "bold": bool(bold), "size": size, "footer": line["bbox"][1] >= footer_y})
@@ -290,14 +293,14 @@ def parse_document(
     batch_dir = out_dir / "batches"
     batch_dir.mkdir(parents=True, exist_ok=True)
     meta_path = out_dir / "parse_meta.json"
-    if meta_path.exists() and json.loads(meta_path.read_text()).get("parse_version") != PARSE_VERSION:
+    if meta_path.exists() and json.loads(meta_path.read_text(encoding="utf-8")).get("parse_version") != PARSE_VERSION:
         for f in batch_dir.glob("*.json"):
             f.unlink()  # parser changed: old batches are stale
     with pymupdf.open(pdf_path) as doc:
         n_pages = doc.page_count
     if max_pages:
         n_pages = min(n_pages, max_pages)
-    meta_path.write_text(json.dumps({"parse_version": PARSE_VERSION, "source": pdf_path.name, "page_count": n_pages}))
+    meta_path.write_text(json.dumps({"parse_version": PARSE_VERSION, "source": pdf_path.name, "page_count": n_pages}), encoding="utf-8")
 
     todo = []
     for first in range(0, n_pages, batch_size):
@@ -306,27 +309,47 @@ def parse_document(
             todo.append((first, last))
     log.info("%s: %d pages, %d/%d batches to parse", pdf_path.name, n_pages, len(todo), -(-n_pages // batch_size))
 
-    workers = workers or max(1, (os.cpu_count() or 2) - 1)
+    workers = workers or max(1, min(DEFAULT_MAX_WORKERS, (os.cpu_count() or 2) - 1))
     t0 = time.time()
+    failed: list[str] = []
     if todo:
+        log.info("  parsing with %d worker processes (--workers to change)", workers)
+        pages_todo = sum(l - f + 1 for f, l in todo)
+        pages_done = 0
         with ProcessPoolExecutor(max_workers=workers) as pool:
             futures = {pool.submit(_parse_batch, str(pdf_path), f, l): (f, l) for f, l in todo}
             for done, fut in enumerate(as_completed(futures), 1):
                 first, last = futures[fut]
-                pages = fut.result()
-                tmp = batch_dir / f"{first + 1:04d}-{last + 1:04d}.tmp"
-                tmp.write_text(json.dumps(pages, ensure_ascii=False))
-                tmp.replace(tmp.with_suffix(".json"))  # atomic: a batch file is either whole or absent
-                log.info("  batch %d/%d (pages %d-%d) %.0fs", done, len(todo), first + 1, last + 1, time.time() - t0)
+                name = f"{first + 1:04d}-{last + 1:04d}"
+                try:
+                    pages = fut.result()
+                    tmp = batch_dir / f"{name}.tmp"
+                    tmp.write_text(json.dumps(pages, ensure_ascii=False), encoding="utf-8")
+                    tmp.replace(tmp.with_suffix(".json"))  # atomic: a batch file is either whole or absent
+                except Exception as exc:  # noqa: BLE001 - keep the other batches; rerun retries this one
+                    failed.append(name)
+                    log.error("  batch %s (pages %d-%d) failed: %s: %s", name, first + 1, last + 1, type(exc).__name__, exc)
+                    continue
+                pages_done += last - first + 1
+                elapsed = time.time() - t0
+                rate = pages_done / elapsed if elapsed else 0.0
+                eta = (pages_todo - pages_done) / rate if rate else 0.0
+                log.info("  batch %d/%d (pages %d-%d) %.0fs, %.2f pages/s, ~%.0f min left",
+                         done, len(todo), first + 1, last + 1, elapsed, rate, eta / 60)
+    if failed:
+        raise RuntimeError(
+            f"{pdf_path.name}: {len(failed)} batch(es) failed ({', '.join(failed)}); the others are saved. "
+            "Re-run the same command to retry only the failed batches."
+        )
 
     pages = []
     for f in sorted(batch_dir.glob("*.json")):
-        pages.extend(json.loads(f.read_text()))
+        pages.extend(json.loads(f.read_text(encoding="utf-8")))
     pages = [p for p in pages if p["page"] <= n_pages]
     document = assemble(pages)
     document.update(parse_version=PARSE_VERSION, source=pdf_path.name, page_count=n_pages)
     out = out_dir / "document.json"
-    out.write_text(json.dumps(document, ensure_ascii=False))
+    out.write_text(json.dumps(document, ensure_ascii=False), encoding="utf-8")
     return out
 
 

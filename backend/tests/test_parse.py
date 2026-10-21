@@ -122,7 +122,7 @@ def test_parse_document_resumes_from_finished_batches(tmp_path, monkeypatch):
     calls.clear()
     out = parse_document(pdf, tmp_path / "parsed", batch_size=1, workers=1)
     assert calls == [(1, 1)], "only the missing batch is parsed again"
-    doc = json.loads(out.read_text())
+    doc = json.loads(out.read_text(encoding="utf-8"))
     assert doc["page_count"] == 2 and len(doc["tables"]) == 2
 
 
@@ -142,5 +142,39 @@ class _InlineExecutor:
         from concurrent.futures import Future
 
         f = Future()
-        f.set_result(fn(*args))
+        try:
+            f.set_result(fn(*args))
+        except Exception as exc:  # noqa: BLE001
+            f.set_exception(exc)
         return f
+
+
+def test_ligatures_are_expanded():
+    assert "Of\ufb01ce of the Controller, e\ufb00ective, \ufb02ow".translate(parse_mod.LIGATURES) == "Office of the Controller, effective, flow"
+
+
+def test_failed_batch_keeps_the_others_and_retries_alone(tmp_path, monkeypatch):
+    pdf = tmp_path / "r.pdf"
+    _make_pdf(pdf)
+    real = parse_mod._parse_batch
+    calls = []
+    fail_once = {1}  # batch starting at page index 1 fails on its first attempt only
+
+    def flaky(path, first, last):
+        calls.append(first)
+        if first in fail_once:
+            fail_once.discard(first)
+            raise MemoryError("simulated worker failure")
+        return real(path, first, last)
+
+    monkeypatch.setattr(parse_mod, "_parse_batch", flaky)
+    monkeypatch.setattr(parse_mod, "ProcessPoolExecutor", _InlineExecutor)
+    with pytest.raises(RuntimeError, match="1 batch\\(es\\) failed \\(0002-0002\\).*Re-run"):
+        parse_document(pdf, tmp_path / "parsed", batch_size=1, workers=1)
+    batch_dir = tmp_path / "parsed" / "r" / "batches"
+    assert [f.name for f in sorted(batch_dir.glob("*.json"))] == ["0001-0001.json"]
+
+    calls.clear()
+    out = parse_document(pdf, tmp_path / "parsed", batch_size=1, workers=1)
+    assert calls == [1], "only the failed batch is parsed again"
+    assert json.loads(out.read_text(encoding="utf-8"))["page_count"] == 2

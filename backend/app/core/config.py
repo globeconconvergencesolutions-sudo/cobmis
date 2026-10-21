@@ -39,7 +39,7 @@ def _is_loopback(host: str | None) -> bool:
 
 def load_profile(name: str, config_path: Path | None = None) -> dict[str, Any]:
     path = config_path or REPO_ROOT / "config.yaml"
-    profiles = yaml.safe_load(path.read_text())["profiles"]
+    profiles = yaml.safe_load(path.read_text(encoding="utf-8"))["profiles"]
     if name not in profiles:
         raise ValueError(f"Unknown profile {name!r}; expected one of {sorted(profiles)}")
     return profiles[name]
@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="COB_",
         env_file=REPO_ROOT / ".env",
+        env_file_encoding="utf-8",
         extra="ignore",
     )
 
