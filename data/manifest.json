@@ -1,0 +1,69 @@
+{
+  "source": "https://cob.go.ke/reports/consolidated-county-budget-implementation-review-reports/",
+  "scraper_version": 1,
+  "updated_at": "2026-10-21T05:01:25+00:00",
+  "documents": [
+    {
+      "url": "https://cob.go.ke/download/county-governments-budget-implementation-review-report-for-the-financial-year-2025-26/",
+      "slug": "county-governments-budget-implementation-review-report-for-the-financial-year-2025-26",
+      "title": "COUNTY GOVERNMENTS BUDGET IMPLEMENTATION REVIEW REPORT FOR THE FINANCIAL YEAR 2025/26",
+      "heading": "COUNTY GOVERNMENTS BUDGET IMPLEMENTATION REVIEW REPORT FOR THE FINANCIAL YEAR 2025/26 51.08 MB 1533 downloads",
+      "fiscal_year": "2025/26",
+      "period": null,
+      "listed_size": "51.08 MB",
+      "status": "ok",
+      "reason": null,
+      "file": "2025-26_unknown-period_county-governments-budget-implementation-review-report-for-the-financial-year-20.pdf",
+      "size": 53561130,
+      "sha256": "919930622bc9fbc0c0b5cdcb566219e4f1432e7c9a3329dfd5bb23616cd33c20",
+      "file_url": "https://cob.go.ke/download/county-governments-budget-implementation-review-report-for-the-financial-year-2025-26/?wpdmdl=16482",
+      "page_count": 935,
+      "text_page_ratio": 0.976,
+      "parse_notes": [
+        "period not recognised"
+      ],
+      "first_seen": "2026-10-21T04:55:00+00:00",
+      "last_checked": "2026-10-21T04:50:59+00:00"
+    },
+    {
+      "url": "https://cob.go.ke/download/county-governments-budget-implementation-review-report-for-the-first-nine-months-of-fy-2025-26/",
+      "slug": "county-governments-budget-implementation-review-report-for-the-first-nine-months-of-fy-2025-26",
+      "title": "County Governments Budget Implementation Review Report for the first nine months of FY 2025/26",
+      "heading": "County Governments Budget Implementation Review Report for the first nine months of FY 2025/26 47.45 MB 2665 downloads",
+      "fiscal_year": "2025/26",
+      "period": "9M",
+      "listed_size": "47.45 MB",
+      "status": "ok",
+      "reason": null,
+      "file": "2025-26_9M_county-governments-budget-implementation-review-report-for-the-first-nine-months.pdf",
+      "size": 49758224,
+      "sha256": "a8da8c34c8d72dcb23fd6f7c228a2a09918c6f5dd6a33ca780be20456a98bf96",
+      "file_url": "https://cob.go.ke/download/county-governments-budget-implementation-review-report-for-the-first-nine-months-of-fy-2025-26/?wpdmdl=16378",
+      "page_count": 924,
+      "text_page_ratio": 0.976,
+      "parse_notes": [],
+      "first_seen": "2026-10-21T04:58:40+00:00",
+      "last_checked": "2026-10-21T04:55:00+00:00"
+    },
+    {
+      "url": "https://cob.go.ke/download/county-governments-budget-implementation-review-report-first-half-of-fy-2025-26/",
+      "slug": "county-governments-budget-implementation-review-report-first-half-of-fy-2025-26",
+      "title": "COUNTY GOVERNMENTS BUDGET IMPLEMENTATION REVIEW REPORT FIRST HALF OF FY 2025/26",
+      "heading": "COUNTY GOVERNMENTS BUDGET IMPLEMENTATION REVIEW REPORT FIRST HALF OF FY 2025/26 37.96 MB 2674 downloads",
+      "fiscal_year": "2025/26",
+      "period": "H1",
+      "listed_size": "37.96 MB",
+      "status": "ok",
+      "reason": null,
+      "file": "2025-26_H1_county-governments-budget-implementation-review-report-first-half-of-fy-2025-26.pdf",
+      "size": 39801515,
+      "sha256": "092f7f392f24113135ec08d72792a1c167ee2053b26a2e2c0abe3f6c4c925b5b",
+      "file_url": "https://cob.go.ke/download/county-governments-budget-implementation-review-report-first-half-of-fy-2025-26/?wpdmdl=16349",
+      "page_count": 792,
+      "text_page_ratio": 0.976,
+      "parse_notes": [],
+      "first_seen": "2026-10-21T05:01:25+00:00",
+      "last_checked": "2026-10-21T04:58:40+00:00"
+    }
+  ]
+}
