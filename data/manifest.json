@@ -7,9 +7,9 @@
       "url": "https://cob.go.ke/download/county-governments-budget-implementation-review-report-for-the-financial-year-2025-26/",
       "slug": "county-governments-budget-implementation-review-report-for-the-financial-year-2025-26",
       "title": "COUNTY GOVERNMENTS BUDGET IMPLEMENTATION REVIEW REPORT FOR THE FINANCIAL YEAR 2025/26",
-      "heading": "COUNTY GOVERNMENTS BUDGET IMPLEMENTATION REVIEW REPORT FOR THE FINANCIAL YEAR 2025/26 51.08 MB 1533 downloads",
+      "heading": "FY 2021/2022, FY 2022/2023, FY 2023/2024 , FY 2024/2025 and FY 2025/2026",
       "fiscal_year": "2025/26",
-      "period": null,
+      "period": "FY",
       "listed_size": "51.08 MB",
       "status": "ok",
       "reason": null,
@@ -20,7 +20,7 @@
       "page_count": 935,
       "text_page_ratio": 0.976,
       "parse_notes": [
-        "period not recognised"
+        "period FY inferred: title names the year with no sub-period"
       ],
       "first_seen": "2026-10-21T04:55:00+00:00",
       "last_checked": "2026-10-21T04:50:59+00:00"
@@ -29,7 +29,7 @@
       "url": "https://cob.go.ke/download/county-governments-budget-implementation-review-report-for-the-first-nine-months-of-fy-2025-26/",
       "slug": "county-governments-budget-implementation-review-report-for-the-first-nine-months-of-fy-2025-26",
       "title": "County Governments Budget Implementation Review Report for the first nine months of FY 2025/26",
-      "heading": "County Governments Budget Implementation Review Report for the first nine months of FY 2025/26 47.45 MB 2665 downloads",
+      "heading": "FY 2021/2022, FY 2022/2023, FY 2023/2024 , FY 2024/2025 and FY 2025/2026",
       "fiscal_year": "2025/26",
       "period": "9M",
       "listed_size": "47.45 MB",
@@ -49,7 +49,7 @@
       "url": "https://cob.go.ke/download/county-governments-budget-implementation-review-report-first-half-of-fy-2025-26/",
       "slug": "county-governments-budget-implementation-review-report-first-half-of-fy-2025-26",
       "title": "COUNTY GOVERNMENTS BUDGET IMPLEMENTATION REVIEW REPORT FIRST HALF OF FY 2025/26",
-      "heading": "COUNTY GOVERNMENTS BUDGET IMPLEMENTATION REVIEW REPORT FIRST HALF OF FY 2025/26 37.96 MB 2674 downloads",
+      "heading": "FY 2021/2022, FY 2022/2023, FY 2023/2024 , FY 2024/2025 and FY 2025/2026",
       "fiscal_year": "2025/26",
       "period": "H1",
       "listed_size": "37.96 MB",

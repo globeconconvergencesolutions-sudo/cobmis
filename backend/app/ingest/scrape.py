@@ -168,10 +168,13 @@ def _sha256(path: Path) -> str:
 
 
 def _safe_name(entry: ListingEntry) -> str:
+    """'<fy>_<period>_<slug prefix>-<8-char hash of URL>.pdf'. The slug is cut to keep paths short
+    on Windows; the hash keeps names unique when two long slugs share a prefix."""
     fy = (entry.fiscal_year or "unknown-fy").replace("/", "-")
     period = entry.period or "unknown-period"
-    slug = re.sub(r"[^a-z0-9-]+", "-", entry.slug.lower()).strip("-")[:80]
-    return f"{fy}_{period}_{slug}.pdf"
+    slug = re.sub(r"[^a-z0-9-]+", "-", entry.slug.lower()).strip("-")[:80].rstrip("-")
+    digest = hashlib.sha1(entry.url.encode()).hexdigest()[:8]
+    return f"{fy}_{period}_{slug}-{digest}.pdf"
 
 
 def _part_path(dest: Path) -> Path:
@@ -336,6 +339,16 @@ def _record_result(rec: ManifestRecord, dest: Path, status: str, reason: str | N
     return rec
 
 
+def refresh_metadata(rec: dict[str, Any], entry: ListingEntry) -> None:
+    """Re-apply listing-derived fields after parser fixes, without touching the downloaded file."""
+    rec.update(
+        title=entry.title, heading=entry.heading, fiscal_year=entry.fiscal_year,
+        period=entry.period, listed_size=entry.size_text,
+    )
+    kept = [n for n in rec.get("parse_notes", []) if n == "no longer on listing page"]
+    rec["parse_notes"] = list(entry.parse_notes) + kept
+
+
 def run(
     data_dir: Path,
     listing_url: str = LISTING_URL,
@@ -376,6 +389,7 @@ def run(
         elif check_new:
             continue
         elif _unchanged_on_disk(old, raw_dir):
+            refresh_metadata(old, entry)
             old["last_checked"] = _now()
             actions["skipped"].append(entry.url)
             continue

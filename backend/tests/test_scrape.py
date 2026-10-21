@@ -9,7 +9,7 @@ import pytest
 
 from app.ingest.scrape import PoliteClient, find_file_link, run
 
-FIXTURE = Path(__file__).parent / "fixtures" / "cob_listing_synthetic.html"
+FIXTURE = Path(__file__).parent / "fixtures" / "cob_listing_live.html"
 BASE = "https://cob.go.ke"
 LISTING = f"{BASE}/reports/consolidated-county-budget-implementation-review-reports/"
 
@@ -44,7 +44,8 @@ class DroppedStream(httpx.SyncByteStream):
 
 
 class FakeCob:
-    """Routes for the synthetic listing's 7 packages, each exercising a different code path."""
+    """Serves the real listing snapshot. Seven of its 53 packages are routed to exercise each code
+    path; every other package 404s (so is recorded as unavailable)."""
 
     def __init__(self):
         self.calls: list[str] = []
@@ -61,7 +62,7 @@ class FakeCob:
         if path == "/reports/consolidated-county-budget-implementation-review-reports/":
             return httpx.Response(200, text=FIXTURE.read_text())
 
-        slug = "county-governments-budget-implementation-review-report-for-the-first-quarter-of-fy-2023-24"
+        slug = "county-governments-budget-implementation-review-report-the-first-quarter-of-fy-2025-26"
         # 1) package page redirects straight to the PDF
         if path == f"/download/{slug}/":
             return httpx.Response(302, headers={"location": "/wp-content/uploads/q1-2023-24.pdf"})
@@ -75,24 +76,24 @@ class FakeCob:
                 return httpx.Response(206, headers=pdf_headers, content=TEXT_PDF[start:])
             return httpx.Response(200, headers=pdf_headers, content=TEXT_PDF)
         # 2) WPDM package page with a data-downloadurl button
-        if path == "/download/cgbirr-half-year-2023-24/":
-            return httpx.Response(200, text='<a class="wpdm-download-link" data-downloadurl="https://cob.go.ke/download/cgbirr-half-year-2023-24/?wpdmdl=101&amp;refresh=abc">Download</a>')
-        if path == "/download/cgbirr-half-year-2023-24/?wpdmdl=101&refresh=abc":
+        if path == "/download/county-governments-budget-implementation-review-report-first-half-of-fy-2025-26/":
+            return httpx.Response(200, text='<a class="wpdm-download-link" data-downloadurl="https://cob.go.ke/download/county-governments-budget-implementation-review-report-first-half-of-fy-2025-26/?wpdmdl=101&amp;refresh=abc">Download</a>')
+        if path == "/download/county-governments-budget-implementation-review-report-first-half-of-fy-2025-26/?wpdmdl=101&refresh=abc":
             return httpx.Response(200, headers={"content-type": "application/octet-stream", "content-disposition": 'attachment; filename="h1.pdf"'}, content=TEXT_PDF)
         # 3) scanned PDF
-        if path == "/download/cgbirr-nine-months-fy-2023-2024/":
+        if path == "/download/county-governments-budget-implementation-review-report-for-the-first-nine-months-of-fy-2025-26/":
             return httpx.Response(200, headers=pdf_headers, content=SCANNED_PDF)
         # 4) listed 0 KB, page has no file
-        if path == "/download/annual-cgbirr-fy-2021-22/":
+        if path == "/download/county-governments-annual-budget-implementation-review-report-for-the-fy-2021-22/":
             return httpx.Response(200, text="<p>No file attached.</p>")
         # 5) 404
-        if path == "/download/third-quarter-cbirr-2016-17/":
+        if path == "/download/budget-implementation-review-report-third-quarter-fy-201617/":
             return httpx.Response(404)
         # 6) claims PDF but serves an HTML error page
-        if path == "/download/cbirr-2016-17-misc/":
+        if path == "/download/county-governments-budget-implementation-review-report-for-the-financial-year-2025-26/":
             return httpx.Response(200, headers=pdf_headers, content=b"<html>error</html>" * 1000)
         # 7) server error
-        if path == "/download/q4-2012-13/":
+        if path == "/download/county-budget-implementation-review-fourth-quarter-fy-2012-2013/":
             return httpx.Response(503)
         return httpx.Response(404)
 
@@ -110,23 +111,24 @@ def test_full_run_statuses(tmp_path):
     fake = FakeCob()
     summary = run(tmp_path, LISTING, client=client_for(fake))
     m = load(tmp_path)
-    assert summary["entries"] == 7 and summary["downloaded"] == 7
+    assert summary["entries"] == 53 and summary["downloaded"] == 53
+    assert sum(d["status"] == "unavailable" for d in m.values()) == 53 - 5
 
-    q1 = m["county-governments-budget-implementation-review-report-for-the-first-quarter-of-fy-2023-24"]
+    q1 = m["county-governments-budget-implementation-review-report-the-first-quarter-of-fy-2025-26"]
     assert q1["status"] == "ok" and q1["page_count"] == 4 and q1["text_page_ratio"] == 1.0
     assert (tmp_path / "raw" / q1["file"]).read_bytes() == TEXT_PDF
-    assert q1["file"].startswith("2023-24_Q1_")
+    assert q1["file"].startswith("2025-26_Q1_") and q1["file"].endswith(".pdf")
 
     # Direct-redirect PDFs are saved from the first response: one request, not two.
     assert fake.calls.count("/wp-content/uploads/q1-2023-24.pdf") == 1
-    assert m["cgbirr-half-year-2023-24"]["status"] == "ok"
-    assert m["cgbirr-half-year-2023-24"]["file_url"].endswith("wpdmdl=101&refresh=abc")
-    assert m["cgbirr-nine-months-fy-2023-2024"]["status"] == "scanned"
-    assert m["annual-cgbirr-fy-2021-22"]["status"] == "unavailable"
-    assert "0 KB" in m["annual-cgbirr-fy-2021-22"]["reason"]
-    assert m["third-quarter-cbirr-2016-17"]["status"] == "unavailable"
-    assert m["cbirr-2016-17-misc"]["status"] == "failed" and "magic" in m["cbirr-2016-17-misc"]["reason"]
-    assert m["q4-2012-13"]["status"] == "failed" and "503" in m["q4-2012-13"]["reason"]
+    assert m["county-governments-budget-implementation-review-report-first-half-of-fy-2025-26"]["status"] == "ok"
+    assert m["county-governments-budget-implementation-review-report-first-half-of-fy-2025-26"]["file_url"].endswith("wpdmdl=101&refresh=abc")
+    assert m["county-governments-budget-implementation-review-report-for-the-first-nine-months-of-fy-2025-26"]["status"] == "scanned"
+    assert m["county-governments-annual-budget-implementation-review-report-for-the-fy-2021-22"]["status"] == "unavailable"
+    assert "0 KB" in m["county-governments-annual-budget-implementation-review-report-for-the-fy-2021-22"]["reason"]
+    assert m["budget-implementation-review-report-third-quarter-fy-201617"]["status"] == "unavailable"
+    assert m["county-governments-budget-implementation-review-report-for-the-financial-year-2025-26"]["status"] == "failed" and "magic" in m["county-governments-budget-implementation-review-report-for-the-financial-year-2025-26"]["reason"]
+    assert m["county-budget-implementation-review-fourth-quarter-fy-2012-2013"]["status"] == "failed" and "503" in m["county-budget-implementation-review-fourth-quarter-fy-2012-2013"]["reason"]
     assert not list((tmp_path / "raw").glob("*.part"))
     assert (tmp_path / "listing_snapshot.html").exists()
 
@@ -138,11 +140,11 @@ def test_rerun_skips_completed_and_unavailable(tmp_path):
 
     fake2 = FakeCob()
     summary = run(tmp_path, LISTING, client=client_for(fake2))
-    # Only the failed ones (misc, q4) are retried; ok/scanned/unavailable are skipped.
-    assert summary["skipped"] == 5 and summary["downloaded"] == 2
+    # Only the 2 failed ones are retried; ok/scanned/unavailable are skipped.
+    assert summary["skipped"] == 51 and summary["downloaded"] == 2
     assert not any("q1-2023-24.pdf" in c or "half-year" in c for c in fake2.calls)
     after = load(tmp_path)
-    for slug in ("cgbirr-half-year-2023-24", "cgbirr-nine-months-fy-2023-2024"):
+    for slug in ("county-governments-budget-implementation-review-report-first-half-of-fy-2025-26", "county-governments-budget-implementation-review-report-for-the-first-nine-months-of-fy-2025-26"):
         assert after[slug]["sha256"] == before[slug]["sha256"]
 
 
@@ -156,7 +158,7 @@ def test_check_new_only_fetches_listing(tmp_path):
 
 def test_corrupted_file_is_redownloaded(tmp_path):
     run(tmp_path, LISTING, client=client_for(FakeCob()))
-    q1 = next(d for d in load(tmp_path).values() if d["slug"].endswith("first-quarter-of-fy-2023-24"))
+    q1 = next(d for d in load(tmp_path).values() if d["slug"].endswith("the-first-quarter-of-fy-2025-26"))
     (tmp_path / "raw" / q1["file"]).write_bytes(b"%PDF-garbage")
     fake = FakeCob()
     run(tmp_path, LISTING, client=client_for(fake))
@@ -168,13 +170,13 @@ def test_truncated_download_resumes_with_range(tmp_path):
     fake = FakeCob()
     fake.truncate_once = True
     run(tmp_path, LISTING, client=client_for(fake))
-    q1 = next(d for d in load(tmp_path).values() if d["slug"].endswith("first-quarter-of-fy-2023-24"))
+    q1 = next(d for d in load(tmp_path).values() if d["slug"].endswith("the-first-quarter-of-fy-2025-26"))
     assert q1["status"] == "failed" and "RemoteProtocolError" in q1["reason"]
     assert list((tmp_path / "raw").glob("*.part"))
 
     fake2 = FakeCob()
     run(tmp_path, LISTING, client=client_for(fake2))
-    q1 = next(d for d in load(tmp_path).values() if d["slug"].endswith("first-quarter-of-fy-2023-24"))
+    q1 = next(d for d in load(tmp_path).values() if d["slug"].endswith("the-first-quarter-of-fy-2025-26"))
     assert q1["status"] == "ok"
     # First hit is the package URL redirecting to the file (probe), then the ranged resume.
     assert fake2.range_headers[-1] == f"bytes={len(TEXT_PDF) // 2}-"
@@ -218,3 +220,18 @@ def test_rate_limit_sleeps_between_requests():
 )
 def test_find_file_link(html, expected):
     assert find_file_link(html, "https://cob.go.ke/download/x/") == expected
+
+
+def test_rerun_refreshes_listing_metadata_without_redownloading(tmp_path):
+    run(tmp_path, LISTING, client=client_for(FakeCob()))
+    manifest = tmp_path / "manifest.json"
+    data = json.loads(manifest.read_text())
+    q1 = next(d for d in data["documents"] if d["slug"].endswith("the-first-quarter-of-fy-2025-26"))
+    q1["period"], q1["parse_notes"] = None, ["period not recognised"]  # as written by an older parser
+    manifest.write_text(json.dumps(data))
+
+    fake = FakeCob()
+    run(tmp_path, LISTING, client=client_for(fake))
+    q1 = load(tmp_path)[q1["slug"]]
+    assert q1["period"] == "Q1" and q1["parse_notes"] == []
+    assert "/wp-content/uploads/q1-2023-24.pdf" not in fake.calls

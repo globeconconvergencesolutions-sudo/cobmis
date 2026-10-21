@@ -25,6 +25,8 @@ PERIOD_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("Q1", re.compile(r"first[\s-]*quarter|1st[\s-]*quarter|\bq1\b|quarter[\s-]*one|three[\s-]*months?|3[\s-]*months?", re.I)),
 ]
 
+FULL_YEAR_ONLY_RE = re.compile(r"\b(?:fy|financial\s+year|fiscal\s+year)\s*(?:fy\s*)?20\d{2}\s*[/\-–—]\s*\d{2,4}\b", re.I)
+
 _UNITS = {"b": 1, "bytes": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3}
 
 
@@ -45,17 +47,23 @@ class ListingEntry:
         return self.size_bytes is not None and self.size_bytes == 0
 
 
-def parse_fiscal_year(text: str | None) -> str | None:
-    """Normalise to 'YYYY/YY'. Only accepts consecutive years, to reject date ranges."""
-    if not text:
-        return None
-    for m in FY_RE.finditer(text):
+def parse_fiscal_years(text: str | None) -> list[str]:
+    """All distinct fiscal years in text, normalised to 'YYYY/YY', in order of appearance.
+    Only consecutive years are accepted, to reject date ranges."""
+    found: list[str] = []
+    for m in FY_RE.finditer(text or ""):
         start = int(m.group(1))
         end_raw = m.group(2)
         end = int(end_raw) if len(end_raw) == 4 else (start // 100) * 100 + int(end_raw)
-        if end == start + 1:
-            return f"{start}/{str(end)[-2:]}"
-    return None
+        fy = f"{start}/{str(end)[-2:]}"
+        if end == start + 1 and fy not in found:
+            found.append(fy)
+    return found
+
+
+def parse_fiscal_year(text: str | None) -> str | None:
+    fys = parse_fiscal_years(text)
+    return fys[0] if fys else None
 
 
 def parse_period(text: str | None) -> str | None:
@@ -137,15 +145,20 @@ def parse_listing(html: str, base_url: str) -> list[ListingEntry]:
 
     # Walk elements in document order so each link is attributed to the nearest FY heading above it.
     for el in root.find_all(True):
-        if el.name in HEADING_TAGS or (
-            el.name in ("p", "strong", "span", "div", "button", "summary")
-            and not el.find("a", href=True)
-            and len(el.get_text(strip=True)) < 60
+        # On the live page each entry's title is an <h3> wrapping its own download link, so a
+        # section heading is one that does not contain a download link.
+        has_download = any("/download/" in x.get("href", "") for x in el.find_all("a", href=True))
+        if not has_download and (
+            el.name in HEADING_TAGS
+            or (el.name in ("p", "strong", "span", "div", "button", "summary") and len(el.get_text(strip=True)) < 120)
         ):
             text = _clean(el.get_text(" "))
-            fy = parse_fiscal_year(text)
-            if fy and (el.name in HEADING_TAGS or re.search(r"\b(fy|financial|fiscal)\b", text, re.I) or text == fy.split("/")[0]):
-                current_heading, current_heading_fy = text, fy
+            fys = parse_fiscal_years(text)
+            if fys and (el.name in HEADING_TAGS or re.search(r"\b(fy|financial|fiscal)\b", text, re.I) or text == fys[0].split("/")[0]):
+                # The live accordion groups several years under one title ("FY 2021/2022, ...,
+                # FY 2025/2026"); such a heading cannot supply a single fallback year.
+                current_heading = text
+                current_heading_fy = fys[0] if len(fys) == 1 else None
             continue
 
         if el.name != "a" or not el.get("href"):
@@ -174,6 +187,11 @@ def parse_listing(html: str, base_url: str) -> list[ListingEntry]:
         elif current_heading_fy and fy != current_heading_fy:
             notes.append(f"title FY {fy} != heading FY {current_heading_fy}")
         period = parse_period(title) or parse_period(slug.replace("-", " "))
+        if not period and fy and FULL_YEAR_ONLY_RE.search(title):
+            # "... REPORT FOR THE FINANCIAL YEAR 2025/26" / "... REPORT FY 2024/25": a title
+            # naming only the year, with no quarter/half/nine-month wording, is the annual report.
+            period = "FY"
+            notes.append("period FY inferred: title names the year with no sub-period")
         if not period:
             notes.append("period not recognised")
 
