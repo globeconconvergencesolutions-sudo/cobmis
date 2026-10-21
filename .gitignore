@@ -11,3 +11,4 @@ data/parsed/*
 !data/parsed/.gitkeep
 data/uploads/
 *.log
+data/qa/
