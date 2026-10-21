@@ -66,4 +66,4 @@ def health(
     ok = all(c["ok"] for c in checks.values())
     if not ok:
         response.status_code = 503
-    return {"status": "ok" if ok else "degraded", "profile": settings.profile, **checks}
+    return {"status": "ok" if ok else "degraded", "profile": settings.profile, "llm_backend": settings.llm_backend, **checks}

@@ -5,7 +5,7 @@ from __future__ import annotations
 import ipaddress
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 import yaml
@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     rerank_top_n: int | None = None
     reranker_enabled: bool | None = None
 
+    # "mock" swaps in app.llm.mock (deterministic, no server) for sandbox/CI only.
+    llm_backend: Literal["ollama", "mock"] = "ollama"
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_timeout_s: float = 300.0
 

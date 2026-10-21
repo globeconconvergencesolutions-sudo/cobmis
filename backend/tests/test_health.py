@@ -32,7 +32,7 @@ def _clear_overrides():
 
 def test_health_degraded_when_db_down_and_models_missing(settings):
     engine = create_engine("postgresql+psycopg://x:y@127.0.0.1:1/none", connect_args={"connect_timeout": 1})
-    resp = _client(settings, ["nomic-embed-text:latest"], engine).get("/health")
+    resp = _client(settings, [f"{settings.embed_model}:latest"], engine).get("/health")
     assert resp.status_code == 503
     body = resp.json()
     assert body["database"]["ok"] is False

@@ -17,6 +17,11 @@ class OllamaError(RuntimeError):
 class OllamaClient:
     def __init__(self, settings: Settings, transport: httpx.BaseTransport | None = None):
         self.settings = settings
+        if transport is None and settings.llm_backend == "mock":
+            from app.llm.mock import mock_ollama_transport
+
+            pulled = {settings.chat_model, settings.sql_model, settings.embed_model}
+            transport = mock_ollama_transport(sorted(pulled), settings.embed_dim)
         self._http = httpx.Client(
             base_url=settings.ollama_url,
             timeout=settings.ollama_timeout_s,
@@ -104,7 +109,11 @@ class OllamaClient:
     def embed(self, texts: list[str], model: str | None = None) -> list[list[float]]:
         data = self._post(
             "/api/embed",
-            {"model": model or self.settings.embed_model, "input": texts},
+            {
+                "model": model or self.settings.embed_model,
+                "input": texts,
+                "options": {"num_ctx": self.settings.num_ctx},
+            },
         )
         vectors = data["embeddings"]
         for v in vectors:

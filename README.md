@@ -4,7 +4,7 @@ A fully local, private assistant over the Controller of Budget's consolidated co
 
 See `PLAN.md` for the full build plan and `DECISIONS.md` for design choices.
 
-**Status: Phase 0 (setup).**
+**Status: Phase 1 (scrape) built; live run pending.**
 
 ## Prerequisites
 
@@ -37,6 +37,18 @@ curl http://127.0.0.1:8000/health
 ```
 
 `/health` returns 200 when Postgres has `vector` and `pg_trgm` and every configured model is pulled, and 503 with details otherwise.
+
+## Phase 1: download the COB reports
+
+```bash
+cd backend
+python -m scripts.scrape_cob --limit 3     # trial: first 3 entries
+python -m scripts.scrape_cob               # everything; ~2-3 s between requests
+python -m scripts.scrape_cob --report      # print the manifest report (offline)
+python -m scripts.scrape_cob --check-new   # later: only fetch newly listed reports
+```
+
+PDFs go to `data/raw/`, metadata to `data/manifest.json`, and the fetched listing page to `data/listing_snapshot.html`. Reruns skip files already on disk with a matching SHA-256 and retry `failed` entries. On Windows use the same commands from PowerShell, with the venv activated via `.venv\Scripts\Activate.ps1`.
 
 ## Tests
 
