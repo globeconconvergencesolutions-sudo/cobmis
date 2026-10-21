@@ -16,26 +16,22 @@ from app.ingest.chunk import Chunk
 from app.ingest.store import embed_pending, sync_chunks, upsert_document
 from app.ingest.tables_to_sql import consistency_check, load_document
 from app.retrieval.search import search
-from scripts.migrate import _env, migrate
+from app.db.roles import DatabaseSetupError, connect, connect_owner
+from scripts.migrate import migrate
 
 FIXTURE = Path(__file__).parent / "fixtures" / "h1_chapter2_tables.json"
 TEST_DB = "cob_test"
 
 
-def _conninfo(user: str, password_var: str, db: str = TEST_DB) -> str:
-    return f"host=127.0.0.1 port={_env('POSTGRES_PORT', '5433')} dbname={db} user={user} password={_env(password_var)}"
-
-
 @pytest.fixture(scope="module")
 def db():
-    owner = _env("POSTGRES_SUPERUSER", "cob_owner")
     try:
-        admin = psycopg.connect(_conninfo(owner, "POSTGRES_SUPERUSER_PASSWORD", "postgres"), autocommit=True, connect_timeout=2)
-    except Exception as exc:  # noqa: BLE001
-        pytest.skip(f"Postgres not reachable: {exc}")
+        admin = connect_owner("postgres", autocommit=True)
+    except DatabaseSetupError as exc:
+        pytest.skip(f"Postgres not reachable: {exc.code}")
     admin.execute(f"DROP DATABASE IF EXISTS {TEST_DB} WITH (FORCE)")
     admin.execute(f"CREATE DATABASE {TEST_DB}")
-    migrate(_conninfo(owner, "POSTGRES_SUPERUSER_PASSWORD"))
+    migrate(dbname=TEST_DB)
     yield
     admin.execute(f"DROP DATABASE IF EXISTS {TEST_DB} WITH (FORCE)")
     admin.close()
@@ -43,7 +39,7 @@ def db():
 
 @pytest.fixture
 def ingest(db):
-    with psycopg.connect(_conninfo("cob_ingest", "COB_INGEST_PASSWORD")) as conn:
+    with connect("cob_ingest", TEST_DB) as conn:
         conn.execute("DELETE FROM public_data.source_document")  # cascades to facts, quarantine, results
         conn.execute("DELETE FROM content.documents")
         conn.commit()
@@ -142,7 +138,7 @@ def test_cumulative_decrease_is_flagged(ingest, tmp_path):
 def test_readonly_role_sees_facts_but_not_quarantine_or_chunks(ingest, tmp_path):
     load_document(ingest, _write_doc(tmp_path), _rec("H1", "e" * 64))
     ingest.commit()
-    with psycopg.connect(_conninfo("cob_readonly", "COB_READONLY_PASSWORD"), autocommit=True) as ro:
+    with connect("cob_readonly", TEST_DB, autocommit=True) as ro:
         assert ro.execute("SELECT count(*) FROM public_data.v_county_metrics").fetchone()[0] > 0
         for table in ("public_data.quarantine_rows", "public_data.validation_results", "content.chunks"):
             with pytest.raises(psycopg.errors.InsufficientPrivilege):
@@ -187,8 +183,7 @@ def test_embedding_resumes_after_interruption(ingest):
 
 
 def test_search_never_crosses_collections(ingest):
-    owner = _env("POSTGRES_SUPERUSER", "cob_owner")
-    with psycopg.connect(_conninfo(owner, "POSTGRES_SUPERUSER_PASSWORD"), autocommit=True) as admin:
+    with connect_owner(TEST_DB, autocommit=True) as admin:
         admin.execute("INSERT INTO app.collections (name, visibility) VALUES ('secret-test', 'restricted') ON CONFLICT DO NOTHING")
         ids = dict(admin.execute("SELECT name, collection_id FROM app.collections").fetchall())
     public_doc = upsert_document(ingest, _rec("H1", "1" * 64), 10, 2)

@@ -41,3 +41,19 @@ def test_non_loopback_endpoints_rejected(field, value):
 @pytest.mark.parametrize("url", ["http://127.0.0.1:11434", "http://localhost:11434", "http://[::1]:11434"])
 def test_loopback_accepted(url):
     Settings(_env_file=None, ollama_url=url)
+
+
+def test_readme_profile_table_matches_config():
+    import re
+
+    from app.core.config import REPO_ROOT
+
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    for name in ("small", "medium", "large"):
+        prof = load_profile(name)
+        row = re.search(rf"^\| {name} \|.*$", readme, re.M)
+        assert row, f"README has no row for profile {name}"
+        cells = [c.strip() for c in row.group(0).strip("|").split("|")]
+        assert cells[2] == prof["chat_model"]
+        assert cells[3] == prof["sql_model"]
+        assert cells[4] == f'{prof["embed_model"]} ({prof["embed_dim"]})'

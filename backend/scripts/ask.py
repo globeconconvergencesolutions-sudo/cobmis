@@ -13,20 +13,12 @@ import argparse
 import sys
 import textwrap
 
-import psycopg
-
 from app.core.config import get_settings
 from app.ingest.counties import BY_CODE, county_mentions, match_county
 from app.llm.answer import build_messages, finalize
 from app.llm.ollama_client import OllamaClient, OllamaError
 from app.retrieval.search import search
-from scripts.migrate import _env
-
-
-def app_conninfo() -> str:
-    s = get_settings()
-    pw = _env("COB_APP_PASSWORD") or s.app_password
-    return f"host={s.db_host} port={s.db_port} dbname={s.db_name} user=cob_app password={pw}"
+from app.db.roles import DatabaseSetupError, connect
 
 
 def main() -> int:
@@ -56,7 +48,7 @@ def main() -> int:
         print(f"Embedding failed ({exc}); falling back to keyword search only.", file=sys.stderr)
         qvec = None
 
-    with psycopg.connect(app_conninfo()) as conn:
+    with connect("cob_app") as conn:
         allowed = [r[0] for r in conn.execute("SELECT collection_id FROM app.collections WHERE visibility = 'public'")]
         hits = search(conn, args.question, qvec, allowed, county.code if county else None, args.fy, args.period,
                       k=s.retrieval_top_k, n=args.n or s.rerank_top_n)
@@ -92,4 +84,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except DatabaseSetupError as exc:
+        print(f"ERROR: {exc.code}", file=sys.stderr)
+        sys.exit(1)

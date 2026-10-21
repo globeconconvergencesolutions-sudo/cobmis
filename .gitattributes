@@ -1,0 +1,18 @@
+# Normalise line endings in the repo; check out text files with the platform default...
+* text=auto
+
+# ...except files read inside Linux containers or by POSIX tools, which must stay LF even on
+# Windows (a CRLF shebang makes a script unrunnable: "cannot execute: required file not found").
+*.sh           text eol=lf
+*.sql          text eol=lf
+*.yml          text eol=lf
+*.yaml         text eol=lf
+Dockerfile*    text eol=lf
+.dockerignore  text eol=lf
+.env.example   text eol=lf
+
+# Binary data: never touch.
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.tar   binary

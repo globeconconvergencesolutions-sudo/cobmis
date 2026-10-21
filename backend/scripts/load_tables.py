@@ -9,21 +9,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-
-import psycopg
+from pathlib import Path
 
 from app.core.config import get_settings
+from app.db.roles import DatabaseSetupError, connect
 from app.ingest.parse import doc_key
 from app.ingest.tables_to_sql import consistency_check, load_document
-from scripts.migrate import _env
-
-
-def ingest_conninfo() -> str:
-    s = get_settings()
-    pw = _env("COB_INGEST_PASSWORD")
-    if not pw:
-        raise SystemExit("COB_INGEST_PASSWORD is not set (.env)")
-    return f"host={s.db_host} port={s.db_port} dbname={s.db_name} user=cob_ingest password={pw}"
 
 
 def main() -> int:
@@ -31,10 +22,8 @@ def main() -> int:
     ap.add_argument("--only")
     args = ap.parse_args()
     data_dir = get_settings().data_dir
-    from pathlib import Path
-
     manifest = json.loads((data_dir / "manifest.json").read_text(encoding="utf-8"))
-    with psycopg.connect(ingest_conninfo()) as conn:
+    with connect("cob_ingest") as conn:
         for rec in manifest["documents"]:
             if not rec.get("file") or (args.only and args.only not in rec["file"]):
                 continue
@@ -64,4 +53,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except DatabaseSetupError as exc:
+        print(f"ERROR: {exc.code}", file=sys.stderr)
+        sys.exit(1)

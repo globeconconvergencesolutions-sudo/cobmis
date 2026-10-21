@@ -9,15 +9,12 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-cob}
       POSTGRES_USER: ${POSTGRES_SUPERUSER:-cob_owner}
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in .env}
-      # Consumed by db/init/10_roles.sh to create the least-privilege roles.
-      COB_APP_PASSWORD: ${COB_APP_PASSWORD:?set COB_APP_PASSWORD in .env}
-      COB_INGEST_PASSWORD: ${COB_INGEST_PASSWORD:?set COB_INGEST_PASSWORD in .env}
-      COB_READONLY_PASSWORD: ${COB_READONLY_PASSWORD:?set COB_READONLY_PASSWORD in .env}
+      # The app's login roles are created by `python -m scripts.migrate`, not by an init
+      # script: nothing from the working tree is mounted into this container.
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s

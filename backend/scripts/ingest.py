@@ -1,6 +1,6 @@
 """One command for the whole local pipeline. Every step is resumable; rerun after any stop.
 
-  1. migrate      apply db/migrations (owner role)
+  1. migrate      create/update database roles, apply db/migrations (owner role)
   2. parse        PDFs -> data/parsed/<doc>/document.json (batched, parallel, resumable)
   3. tables       all-county tables -> public_data facts, with validation + quarantine
   4. chunk        narrative + table chunks -> content.chunks (unchanged chunks are kept)
@@ -23,15 +23,13 @@ import sys
 import time
 from pathlib import Path
 
-import psycopg
-
 from app.core.config import get_settings
+from app.db.roles import DatabaseSetupError, connect
 from app.ingest.chunk import chunk_document
 from app.ingest.parse import doc_key, parse_document
 from app.ingest.store import embed_pending, sync_chunks, upsert_document
 from app.ingest.tables_to_sql import consistency_check, load_document
 from app.llm.ollama_client import OllamaClient, OllamaError
-from scripts.load_tables import ingest_conninfo
 from scripts.migrate import migrate
 
 
@@ -51,8 +49,9 @@ def main() -> int:
     s = get_settings()
     data_dir = s.data_dir
 
-    applied = migrate()
-    log.info("migrations: %s", ", ".join(applied) or "up to date")
+    res = migrate()
+    log.info("roles created: %s; migrations: %s", ", ".join(res["roles_created"]) or "none",
+             ", ".join(res["applied"]) or "up to date")
 
     manifest = json.loads((data_dir / "manifest.json").read_text(encoding="utf-8"))
     recs = [r for r in manifest["documents"] if r["status"] in ("ok", "scanned") and r.get("file")]
@@ -60,7 +59,7 @@ def main() -> int:
         recs = [r for r in recs if args.only in r["file"]]
 
     doc_ids = []
-    with psycopg.connect(ingest_conninfo()) as conn:
+    with connect("cob_ingest") as conn:
         for rec in recs:
             pdf = data_dir / "raw" / rec["file"]
             if not pdf.exists():
@@ -109,4 +108,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except DatabaseSetupError as exc:
+        print(f"ERROR: {exc.code}", file=sys.stderr)
+        sys.exit(1)

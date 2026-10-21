@@ -68,7 +68,7 @@ Remove-Item samples.tar
 
 # 2. Configuration (first time only): copy, then change every change-me-* password.
 Copy-Item .env.example .env
-#    In .env keep COB_PROFILE=small and COB_LLM_BACKEND=ollama.
+#    .env.example already sets COB_PROFILE=small and COB_LLM_BACKEND=ollama; keep both.
 
 # 3. Database (Postgres + pgvector on 127.0.0.1:5433)
 docker compose up -d
@@ -82,25 +82,30 @@ cd backend
 # 5. Check Ollama: a test prompt and a test embedding with your models
 python -m scripts.check_ollama
 
-# 6. Ingest: migrate, parse (parallel, resumable), tables -> SQL, chunk, embed (resumable)
+# 6. Database roles and schema. Creates cob_app, cob_ingest and cob_readonly if missing
+#    (otherwise re-applies their .env passwords), then applies db/migrations. Safe to re-run;
+#    ingest also runs it first.
+python -m scripts.migrate
+
+# 7. Ingest: parse (parallel, resumable), tables -> SQL, chunk, embed (resumable)
 python -m scripts.ingest
 #    Parsing takes about 2.5 min per report on 4 cores. Embedding ~5,500 chunks prints a rate
 #    and ETA. Ctrl+C at any point is safe: rerun the same command to continue.
 #    Options: --only 9M, --workers 6, --skip-embed, --embed-limit 200 (trial)
 
-# 7. Ask (narrative/RAG path; numeric text-to-SQL is Phase 4)
+# 8. Ask (narrative/RAG path; numeric text-to-SQL is Phase 4)
 python -m scripts.ask "What challenges did Kericho County face in the first nine months of FY 2025/26?"
 python -m scripts.ask "pending bills" --county "Nairobi City" --period FY
 python -m scripts.ask "own source revenue performance" --retrieve-only
 
-# 8. Inspect quality
+# 9. Inspect quality
 python -m scripts.table_qa            # writes data\qa\<report>.html: tables next to their PDF pages
 python -m scripts.load_tables         # re-run table loading and print validation results
 ```
 
-Every step can be re-run safely. To inspect the SQL data directly: `docker compose exec postgres psql -U cob_owner -d cob`, then for example `SELECT * FROM public_data.v_county_metrics WHERE county = 'Turkana' ORDER BY months, metric;`.
+Every step can be re-run safely. Nothing from the working tree is mounted into the Postgres container, and the database roles are created by `scripts.migrate`, not by a Docker init script. So an existing volume needs no rebuild: run step 6. If a connection still fails, the scripts say why (role missing, password rejected, Postgres not running) and what to run, instead of printing a traceback. `.gitattributes` keeps `*.sh`, `*.sql`, `*.yml` and `*.yaml` at LF line endings on Windows checkouts. To inspect the SQL data directly: `docker compose exec postgres psql -U cob_owner -d cob`, then for example `SELECT * FROM public_data.v_county_metrics WHERE county = 'Turkana' ORDER BY months, metric;`.
 
-In this cloud sandbox there is no Ollama, so the same commands run with `COB_LLM_BACKEND=mock`. Mock vectors are hash-based stand-ins, and the mock chat model returns a fixed marker, never a real answer.
+`COB_LLM_BACKEND=ollama` is the default. Only the cloud build sandbox, which has no Ollama, runs these commands with `COB_LLM_BACKEND=mock`. Mock vectors are hash-based stand-ins, and the mock chat model returns a fixed marker, never a real answer.
 
 ## Tests
 
@@ -117,11 +122,11 @@ COB_TEST_DB_URL=postgresql+psycopg://cob_app:<COB_APP_PASSWORD>@127.0.0.1:5433/c
 
 | Profile | Rough target | Chat | SQL | Embeddings |
 |---|---|---|---|---|
-| small | 16 GB RAM, CPU or ≤8 GB VRAM | qwen3.5:9b | same | nomic-embed-text (768) |
+| small | 16 GB RAM, CPU or ≤8 GB VRAM | qwen3.5:9b | qwen3.5:9b | bge-m3 (1024) |
 | medium | 32 GB RAM, 16–24 GB VRAM | qwen3.6:27b | qwen3-coder:30b | bge-m3 (1024) |
 | large | 64 GB+ RAM, 32 GB+ VRAM | qwen3.6:35b-a3b | qwen3-coder:30b | bge-m3 (1024) |
 
-These tags are not yet verified (DECISIONS.md D-004). Any value can be overridden per variable, e.g. `COB_CHAT_MODEL=llama3.1:8b`. Changing the embedding model after ingestion means re-embedding, because `embed_dim` fixes the vector column size.
+`small` is the verified profile (qwen3.5:9b and bge-m3, confirmed on the target machine); the medium and large tags are not yet verified (DECISIONS.md D-004). `tests/test_config.py` checks this table against `config.yaml`. Any value can be overridden per variable, e.g. `COB_CHAT_MODEL=llama3.1:8b`. Changing the embedding model after ingestion means re-embedding, because `embed_dim` fixes the vector column size.
 
 ## Privacy notes
 
