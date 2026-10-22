@@ -5,8 +5,8 @@ Skipped when Postgres is not reachable.
 Fixture data: real extracted rows of tables 2.3 and 2.4 of the FY 2025/26 first-half report.
 """
 
-import copy
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import psycopg
@@ -177,7 +177,7 @@ def test_embedding_resumes_after_interruption(ingest):
 
     # Re-syncing identical chunks keeps rows and vectors; a changed chunk is replaced.
     changed = _chunks(10)
-    changed[0] = copy.replace(changed[0], text="Something new.")
+    changed[0] = replace(changed[0], text="Something new.")
     res = sync_chunks(ingest, doc_id, changed)
     assert res == {"kept": 9, "added": 1, "removed": 1}
 

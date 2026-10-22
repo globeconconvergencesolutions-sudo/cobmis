@@ -183,7 +183,7 @@ cob-agent/
 ## 6. Query path
 
 ### 6.1 Router
-Classify each question into `rag`, `sql`, or `both`, using a small LLM prompt with few-shot examples plus simple heuristics (keywords such as "highest", "compare", "total", "rank", "how much", "% absorption" push toward SQL; "why", "challenges", "recommendations", "what did X report" push toward RAG). Log the route. Allow the UI to show it, and allow a manual override.
+Classify each question into `catalog`, `rag`, `sql`, or `both`. **Catalog** is heuristic-only (no LLM): questions about what data/documents/sources are loaded, what can be asked, which years/counties/periods exist, “do you have X”, “what is this report about”, and “how up to date”. Catalog answers are built from SQL + templates only (see D-024). The remaining routes use a small LLM prompt with few-shot examples plus simple heuristics (keywords such as "highest", "compare", "total", "rank", "how much", "% absorption" push toward SQL; "why", "challenges", "recommendations", "what did X report" push toward RAG). Log the route. Allow the UI to show it, and allow a manual override.
 
 ### 6.2 RAG path
 1. Extract filters from the question (county, FY, period) with the LLM plus regex.
@@ -222,13 +222,14 @@ Run SQL for the figures and RAG for the explanation, then merge in one answer wi
    - Suggested starter questions for the public collection.
    - Thumbs up/down with an optional note, stored for evaluation.
 3. **Library**: list of documents with FY, period, status, and a source-document viewer.
-4. **Admin**
+4. **About this data** (Phase 6): a page that renders the same payload as the catalog route (`build_catalog`): document list (title, FY, period, pages, collection, ingest time, cob.go.ke URL), coverage by year/period, counts, plain-English metric dictionary, known limitations, and example questions. Chat catalog answers and this page share one SQL-backed source of truth — do not maintain a second hand-written copy in the frontend. Restricted collections appear only for users with read access.
+5. **Admin**
    - Scrape/sync button with progress (runs the scraper as a job), ingest status, failed docs and a retry action.
    - Upload to a restricted collection, column-mapping preview for tabular files.
    - User and role management, collection access grants.
    - Audit log viewer (who asked what, route, sources) with CSV export.
    - System health: Ollama reachable, models loaded, DB size, chunk and row counts.
-5. Clean, professional, responsive. Dark mode is a nice-to-have.
+6. Clean, professional, responsive. Dark mode is a nice-to-have.
 
 ---
 

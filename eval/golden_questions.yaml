@@ -1,0 +1,191 @@
+# Golden questions for evaluation. Consumed by backend/scripts/eval_run.py.
+# Catalog answers are SQL/templated only. SQL-route answers must match DB values at eval time
+# (prefer expect.sql_check / ordered counties over hard-coding amounts that change with new reports).
+
+version: 1
+questions:
+  - id: catalog_what_data
+    route: catalog
+    question: "What data do you have?"
+    expect:
+      route: catalog
+      kind: overview
+      contains:
+        - "Loaded documents"
+        - "Coverage by fiscal year"
+        - "Example questions"
+        - "Known limitations"
+      numbers_from: sql
+
+  - id: catalog_have_fy_2022_23
+    route: catalog
+    question: "Do you have FY 2022/23?"
+    expect:
+      route: catalog
+      kind: have
+      present: false
+      starts_with: "No."
+      contains:
+        - "2022/23"
+
+  - id: catalog_which_counties
+    route: catalog
+    question: "Which counties are covered?"
+    expect:
+      route: catalog
+      kind: overview
+      contains:
+        - "Counties tagged in chunks"
+        - "dim_county"
+      numbers_from: sql
+
+  - id: catalog_what_can_i_ask
+    route: catalog
+    question: "What can I ask?"
+    expect:
+      route: catalog
+      kind: examples
+      contains:
+        - "Example questions"
+        - "Kericho"
+
+  - id: catalog_how_up_to_date
+    route: catalog
+    question: "How up to date is this?"
+    expect:
+      route: catalog
+      kind: freshness
+      contains:
+        - "ingested_at"
+      numbers_from: sql
+
+  # --- Phase 4 text-to-SQL ---
+  - id: sql_top5_pending_fy
+    route: sql
+    question: "Top 5 counties by pending bills in FY 2025/26 full year"
+    expect:
+      route: sql
+      sql_check: |
+        SELECT county FROM public_data.v_county_metrics
+        WHERE metric = 'pending_bills_total' AND fiscal_year = '2025/26' AND period_type = 'FY'
+        ORDER BY value DESC LIMIT 5
+      ordered_counties_match_sql: true
+      numbers_from: sql_result
+
+  - id: sql_turkana_abs_dev_9m
+    route: sql
+    question: "Turkana development absorption in the first nine months of FY 2025/26"
+    expect:
+      route: sql
+      sql_check: |
+        SELECT value FROM public_data.v_county_metrics
+        WHERE county = 'Turkana' AND metric = 'absorption_development_pct'
+          AND fiscal_year = '2025/26' AND period_type = '9M'
+      contains_value_from_sql: true
+
+  - id: sql_nairobi_osr_h1
+    route: sql
+    question: "Nairobi City own source revenue performance H1 FY 2025/26"
+    expect:
+      route: sql
+      contains:
+        - "Nairobi"
+      numbers_from: sql_result
+
+  - id: sql_compare_osr_h1
+    route: sql
+    question: "Compare Nairobi City and Mombasa total OSR performance in H1 2025/26"
+    expect:
+      route: sql
+      contains:
+        - "Nairobi"
+        - "Mombasa"
+      numbers_from: sql_result
+
+  - id: sql_baringo_budget_h1
+    route: sql
+    question: "Baringo total approved budget first half FY 2025/26"
+    expect:
+      route: sql
+      sql_check: |
+        SELECT value FROM public_data.v_county_metrics
+        WHERE county = 'Baringo' AND metric = 'budget_total'
+          AND fiscal_year = '2025/26' AND period_type = 'H1'
+      contains_value_from_sql: true
+
+  - id: sql_highest_abs_9m
+    route: sql
+    question: "Which county had the highest total absorption rate in 9M FY 2025/26?"
+    expect:
+      route: sql
+      sql_check: |
+        SELECT county FROM public_data.v_county_metrics
+        WHERE metric = 'absorption_total_pct' AND fiscal_year = '2025/26' AND period_type = '9M'
+        ORDER BY value DESC LIMIT 1
+      ordered_counties_match_sql: true
+
+  - id: sql_kericho_osr_target_9m
+    route: sql
+    question: "Kericho ordinary own-source revenue target FY 2025/26 nine months"
+    expect:
+      route: sql
+      sql_check: |
+        SELECT value FROM public_data.v_county_metrics
+        WHERE county = 'Kericho' AND metric = 'osr_target_ordinary'
+          AND fiscal_year = '2025/26' AND period_type = '9M'
+      contains_value_from_sql: true
+
+  - id: sql_sum_pending_fy
+    route: sql
+    question: "Total pending bills for all counties end of FY 2025/26"
+    expect:
+      route: sql
+      numbers_from: sql_result
+
+  - id: sql_missing_year_refuse
+    route: sql
+    question: "Top 5 counties by pending bills in FY 2019/20"
+    expect:
+      route: sql
+      refuse: true
+      contains:
+        - "do not contain this information"
+
+  - id: sql_unknown_metric_refuse
+    route: sql
+    question: "What was the lunar absorption rate for Mars County in FY 2025/26?"
+    expect:
+      route: sql
+      refuse: true
+
+  - id: rag_kericho_challenges
+    route: rag
+    question: "What challenges did Kericho County face in the first nine months of FY 2025/26?"
+    expect:
+      route: rag
+      cite_pages:
+        - [297, 298]
+
+  - id: both_kericho_challenges_osr
+    route: both
+    question: "What challenges did Kericho face and what was their OSR performance in 9M FY 2025/26?"
+    expect:
+      route: both
+
+  - id: both_performance_and_challenges
+    route: both
+    question: "performance and challenges for Turkana in the first nine months"
+    expect:
+      route: both
+
+  - id: both_explain_absorption_figures
+    route: both
+    question: "explain Nairobi absorption with figures for FY 2025/26 nine months"
+    expect:
+      route: both
+
+  - id: both_kericho_osr_and_challenges
+    route: both
+    question: "Kericho challenges and own-source revenue nine months FY 2025/26"
+    expect:
+      route: both

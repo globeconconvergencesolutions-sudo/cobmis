@@ -10,3 +10,8 @@ pyyaml==6.0.3
 beautifulsoup4==4.15.0
 # AGPL-3.0; fine for a private, non-distributed deployment (DECISIONS.md D-012)
 pymupdf==2.0
+# Text-to-SQL validation (Phase 4). Never execute unvalidated model SQL.
+sqlglot==28.0.0
+# Phase 6 auth (Argon2 password hashes; no hosted auth service).
+argon2-cffi==25.1.0
+itsdangerous==2.2.0

@@ -70,7 +70,10 @@ class Settings(BaseSettings):
     # "mock" swaps in app.llm.mock (deterministic, no server) for sandbox/CI only.
     llm_backend: Literal["ollama", "mock"] = "ollama"
     ollama_url: str = "http://127.0.0.1:11434"
-    ollama_timeout_s: float = 300.0
+    # Hard read timeout per Ollama call. Ask UI soft-warns earlier; cancel aborts the HTTP client.
+    ollama_timeout_s: float = 120.0
+    ollama_rewrite_timeout_s: float = 45.0
+    ollama_embed_timeout_s: float = 60.0
 
     db_host: str = "127.0.0.1"
     db_port: int = Field(5433, validation_alias="POSTGRES_PORT")

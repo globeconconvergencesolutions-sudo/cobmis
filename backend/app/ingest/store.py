@@ -19,17 +19,27 @@ from app.ingest.chunk import Chunk
 log = logging.getLogger("cob.store")
 
 
-def upsert_document(conn: psycopg.Connection, rec: dict, page_count: int, parse_version: int, collection: str = "cob-public") -> int:
+def upsert_document(
+    conn: psycopg.Connection,
+    rec: dict,
+    page_count: int,
+    parse_version: int,
+    collection: str = "cob-public",
+    needs_ocr_pages: int = 0,
+) -> int:
     coll = conn.execute("SELECT collection_id FROM app.collections WHERE name = %s", (collection,)).fetchone()
     if not coll:
         raise ValueError(f"unknown collection {collection!r}")
     return conn.execute(
-        "INSERT INTO content.documents (collection_id, title, fiscal_year, period_type, source_url, file_name, sha256, page_count, parse_version) "
-        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
+        "INSERT INTO content.documents (collection_id, title, fiscal_year, period_type, source_url, file_name, sha256, "
+        "page_count, parse_version, needs_ocr_pages, ingested_at) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now()) "
         "ON CONFLICT (sha256) DO UPDATE SET title = EXCLUDED.title, fiscal_year = EXCLUDED.fiscal_year, period_type = EXCLUDED.period_type, "
-        "  source_url = EXCLUDED.source_url, file_name = EXCLUDED.file_name, page_count = EXCLUDED.page_count, parse_version = EXCLUDED.parse_version "
+        "  source_url = EXCLUDED.source_url, file_name = EXCLUDED.file_name, page_count = EXCLUDED.page_count, "
+        "  parse_version = EXCLUDED.parse_version, needs_ocr_pages = EXCLUDED.needs_ocr_pages, ingested_at = now() "
         "RETURNING doc_id",
-        (coll[0], rec["title"], rec.get("fiscal_year"), rec.get("period"), rec.get("url"), rec["file"], rec["sha256"], page_count, parse_version),
+        (coll[0], rec["title"], rec.get("fiscal_year"), rec.get("period"), rec.get("url"), rec["file"], rec["sha256"],
+         page_count, parse_version, needs_ocr_pages),
     ).fetchone()[0]
 
 

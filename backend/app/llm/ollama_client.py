@@ -24,18 +24,50 @@ class OllamaClient:
             transport = mock_ollama_transport(sorted(pulled), settings.embed_dim)
         self._http = httpx.Client(
             base_url=settings.ollama_url,
-            timeout=settings.ollama_timeout_s,
+            timeout=httpx.Timeout(
+                connect=10.0,
+                read=settings.ollama_timeout_s,
+                write=30.0,
+                pool=10.0,
+            ),
             transport=transport,
             trust_env=False,  # never route loopback traffic through an HTTP(S)_PROXY
         )
+        self._closed = False
 
     def close(self) -> None:
-        self._http.close()
-
-    def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if self._closed:
+            return
+        self._closed = True
         try:
-            resp = self._http.post(path, json=payload)
+            self._http.close()
+        except Exception:
+            pass
+
+    def _timeout(self, read_s: float | None) -> httpx.Timeout | None:
+        if read_s is None:
+            return None
+        return httpx.Timeout(connect=10.0, read=read_s, write=30.0, pool=10.0)
+
+    def _post(
+        self,
+        path: str,
+        payload: dict[str, Any],
+        *,
+        read_timeout: float | None = None,
+    ) -> dict[str, Any]:
+        if self._closed:
+            raise OllamaError("Request cancelled")
+        try:
+            resp = self._http.post(path, json=payload, timeout=self._timeout(read_timeout))
+        except httpx.TimeoutException as exc:
+            raise OllamaError(
+                f"Local model timed out after {read_timeout or self.settings.ollama_timeout_s:.0f}s "
+                f"on {path}. Cancel other asks or retry with a shorter question."
+            ) from exc
         except httpx.HTTPError as exc:
+            if self._closed:
+                raise OllamaError("Request cancelled") from exc
             raise OllamaError(f"Ollama unreachable at {self.settings.ollama_url}: {exc}") from exc
         if resp.status_code != 200:
             raise OllamaError(f"Ollama {path} returned {resp.status_code}: {resp.text[:300]}")
@@ -62,6 +94,8 @@ class OllamaClient:
         messages: list[dict[str, str]],
         model: str | None = None,
         temperature: float = 0.0,
+        *,
+        read_timeout: float | None = None,
     ) -> str:
         data = self._post(
             "/api/chat",
@@ -73,6 +107,7 @@ class OllamaClient:
                 "think": False,
                 "options": {"temperature": temperature, "num_ctx": self.settings.num_ctx},
             },
+            read_timeout=read_timeout,
         )
         return data["message"]["content"]
 
@@ -84,6 +119,8 @@ class OllamaClient:
     ) -> Iterator[str]:
         import json
 
+        if self._closed:
+            raise OllamaError("Request cancelled")
         payload = {
             "model": model or self.settings.chat_model,
             "messages": messages,
@@ -96,6 +133,8 @@ class OllamaClient:
                 if resp.status_code != 200:
                     raise OllamaError(f"Ollama /api/chat returned {resp.status_code}")
                 for line in resp.iter_lines():
+                    if self._closed:
+                        raise OllamaError("Request cancelled")
                     if not line:
                         continue
                     chunk = json.loads(line)
@@ -104,6 +143,8 @@ class OllamaClient:
                     if chunk.get("done"):
                         break
         except httpx.HTTPError as exc:
+            if self._closed:
+                raise OllamaError("Request cancelled") from exc
             raise OllamaError(str(exc)) from exc
 
     def embed(self, texts: list[str], model: str | None = None) -> list[list[float]]:
@@ -114,6 +155,7 @@ class OllamaClient:
                 "input": texts,
                 "options": {"num_ctx": self.settings.num_ctx},
             },
+            read_timeout=self.settings.ollama_embed_timeout_s,
         )
         vectors = data["embeddings"]
         for v in vectors:

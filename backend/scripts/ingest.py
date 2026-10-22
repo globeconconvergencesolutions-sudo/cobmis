@@ -93,8 +93,11 @@ def main() -> int:
                 log.info("%s %s tables: %d facts, %d quarantined rows", rec["fiscal_year"], rec["period"], stats["facts"], stats["quarantined"])
 
             chunks = chunk_document(doc, rec["fiscal_year"], rec["period"], target=args.chunk_tokens)
+            ocr_pages = sum(1 for p in doc.get("pages", []) if p.get("needs_ocr"))
             with conn.transaction():
-                doc_id = upsert_document(conn, rec, doc["page_count"], doc["parse_version"])
+                doc_id = upsert_document(
+                    conn, rec, doc["page_count"], doc["parse_version"], needs_ocr_pages=ocr_pages,
+                )
                 res = sync_chunks(conn, doc_id, chunks)
             doc_ids.append(doc_id)
             log.info("%s %s chunks: %d kept, %d added, %d removed", rec["fiscal_year"], rec["period"], res["kept"], res["added"], res["removed"])
